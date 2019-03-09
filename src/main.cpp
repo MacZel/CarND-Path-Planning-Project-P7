@@ -52,7 +52,6 @@ int main() {
 	}
   
 	int lane = 1;
-  
 	double ref_vel = 0.0;
 
 	h.onMessage(
@@ -63,14 +62,18 @@ int main() {
           
 		// constants
 		const float LANE_WIDTH = 4.0; // in meters
+		const float MAX_SPEED = 49.5; // in mph
+		const float MAX_ACCELERATION = .224; // in mph^2 (~ 5 m/s^2)
+		const int MAX_HIGHWAY_LANES = 3;
+		const int SAFETY_GAP = 30; // in meters
 		
 		// "42" at the start of the message means there's a websocket message event.
 		// The 4 signifies a websocket message
 		// The 2 signifies a websocket event
 		if (length && length > 2 && data[0] == '4' && data[1] == '2') {
-
-		auto s = hasData(data);
-
+			auto s = hasData(data);
+			
+			// check if SocketIO returned any data
 			if (s != "") {
 				auto j = json::parse(s);
         
@@ -105,30 +108,53 @@ int main() {
 						car_s = end_path_s;
 					}
           
-					bool too_close = false;
-          
+					bool unsafe2turn_left = false;
+					bool unsafe2go_ahead = false;
+					bool unsafe2turn_right = false;
+
+					// iterate through every detected car
 					for (int i = 0; i < sensor_fusion.size(); i++) {
+						// load d value
 						float d = sensor_fusion[i][6];
-						if (d < (LANE_WIDTH * (1 + lane)) && d > (LANE_WIDTH * lane)) {
-							double vx = sensor_fusion[i][3];
-							double vy = sensor_fusion[i][4];
-							double check_speed = sqrt(vx * vx + vy * vy);
-							double check_car_s = sensor_fusion[i][5];
+						int current_car_lane;
 						
-							check_car_s += ((double)prev_size * .02 * check_speed);
-							if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-								too_close = true;
-								if (lane > 0) {
-									lane = 0;
-								}
+						// check current cars position on the road (d) and assign lane
+						for (int lane_i = 0; lane_i < MAX_HIGHWAY_LANES; lane_i++) {
+							if (d > lane_i * LANE_WIDTH && d < (lane_i + 1) * LANE_WIDTH) {
+								current_car_lane = lane_i;
+								break;
 							}
 						}
+
+						// check cars speed
+						double vx = sensor_fusion[i][3];
+						double vy = sensor_fusion[i][4];
+						double check_speed = sqrt(vx * vx + vy * vy);
+						double check_car_s = sensor_fusion[i][5];
+
+						// calculate cars position (s)
+						check_car_s += ((double)prev_size * .02 * check_speed);
+
+						// mark cars position in lane
+						if (current_car_lane == lane - 1) {
+							unsafe2turn_left |= check_car_s - car_s > -SAFETY_GAP && check_car_s - car_s < SAFETY_GAP;
+						} else if (current_car_lane == lane) {
+							unsafe2go_ahead |= check_car_s - car_s > 0 && check_car_s - car_s < SAFETY_GAP;
+						} else if (current_car_lane == lane + 1) {
+							unsafe2turn_right |= check_car_s - car_s > -SAFETY_GAP && check_car_s - car_s < SAFETY_GAP;
+						}
 					}
-          
-					if (too_close) {
-						ref_vel -= .224;
-					} else if (ref_vel < 49.5) {
-						ref_vel += .224;
+                  
+					if (unsafe2go_ahead) {
+						if(!unsafe2turn_left && lane != 0) {
+							lane--;
+						} else if (!unsafe2turn_right && lane != MAX_HIGHWAY_LANES - 1){
+							lane++;
+						} else {
+							ref_vel -= MAX_ACCELERATION;
+						}
+					} else {
+						ref_vel += MAX_ACCELERATION;
 					}
           
 					vector<double> ptsx;
