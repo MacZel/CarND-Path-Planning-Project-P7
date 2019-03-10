@@ -65,7 +65,8 @@ int main() {
 		const float MAX_SPEED = 49.5; // in mph
 		const float MAX_ACCELERATION = .224; // in mph^2 (~ 5 m/s^2)
 		const int MAX_HIGHWAY_LANES = 3;
-		const int SAFETY_GAP = 30; // in meters
+		const int SAFETY_GAP_FRONT = 30; // in meters
+		const int SAFETY_GAP_BEHIND = 10; // in meters
 		
 		// "42" at the start of the message means there's a websocket message event.
 		// The 4 signifies a websocket message
@@ -111,6 +112,8 @@ int main() {
 					bool unsafe2turn_left = false;
 					bool unsafe2go_ahead = false;
 					bool unsafe2turn_right = false;
+					
+					double speed_ahead;
 
 					// iterate through every detected car
 					for (int i = 0; i < sensor_fusion.size(); i++) {
@@ -131,30 +134,41 @@ int main() {
 						double vy = sensor_fusion[i][4];
 						double check_speed = sqrt(vx * vx + vy * vy);
 						double check_car_s = sensor_fusion[i][5];
+						
+						speed_ahead = check_speed;
 
 						// calculate cars position (s)
 						check_car_s += ((double)prev_size * .02 * check_speed);
 
-						// mark cars position in lane
+						// check when lane is unsafe to make a move
 						if (current_car_lane == lane - 1) {
-							unsafe2turn_left |= check_car_s - car_s > -SAFETY_GAP && check_car_s - car_s < SAFETY_GAP;
+							unsafe2turn_left = unsafe2turn_left || (check_car_s - car_s > -SAFETY_GAP_BEHIND && check_car_s - car_s < SAFETY_GAP_FRONT);
 						} else if (current_car_lane == lane) {
-							unsafe2go_ahead |= check_car_s - car_s > 0 && check_car_s - car_s < SAFETY_GAP;
+							unsafe2go_ahead = unsafe2go_ahead || (check_car_s - car_s > 0 && check_car_s - car_s < SAFETY_GAP_FRONT);
 						} else if (current_car_lane == lane + 1) {
-							unsafe2turn_right |= check_car_s - car_s > -SAFETY_GAP && check_car_s - car_s < SAFETY_GAP;
+							unsafe2turn_right = unsafe2turn_right || (check_car_s - car_s > -SAFETY_GAP_BEHIND && check_car_s - car_s < SAFETY_GAP_FRONT);
 						}
 					}
                   
+					double vel_diff = 0;
 					if (unsafe2go_ahead) {
+						// attempt to change the lane
 						if(!unsafe2turn_left && lane != 0) {
 							lane--;
 						} else if (!unsafe2turn_right && lane != MAX_HIGHWAY_LANES - 1){
 							lane++;
 						} else {
-							ref_vel -= MAX_ACCELERATION;
+							// if lane change is unsafe atm keep the speed of the car in front
+							if (ref_vel > speed_ahead) {
+								ref_vel -= MAX_ACCELERATION;
+							} else {
+								ref_vel = speed_ahead;
+							}
 						}
 					} else {
-						ref_vel += MAX_ACCELERATION;
+						if (ref_vel < MAX_SPEED) {
+							vel_diff += MAX_ACCELERATION;
+						}
 					}
           
 					vector<double> ptsx;
@@ -227,6 +241,13 @@ int main() {
 					double x_add_on = 0;
           
 					for (int i = 1; i <= 50 - previous_path_x.size(); i++) {
+						
+						ref_vel += vel_diff;
+						if ( ref_vel > MAX_SPEED ) {
+							ref_vel = MAX_SPEED;
+						} else if ( ref_vel < MAX_ACCELERATION ) {
+							ref_vel = MAX_ACCELERATION;
+						}
             
 						double N = (target_dist / (.02 * ref_vel / 2.24));
 						double x_point = x_add_on + (target_x) / N;
