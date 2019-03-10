@@ -1,5 +1,19 @@
-# CarND-Path-Planning-Project
-Self-Driving Car Engineer Nanodegree Program
+# **Path-Planning-Project**
+[![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
+
+[//]: # (Image References)
+
+[image1]: ./path_planning.png "Path Planning"
+
+![Path Planning][image1]
+
+## Reflections
+My path planner is built on top of the [starter project](https://github.com/udacity/CarND-Path-Planning-Project) by udacity. On lines [63 to 69](https://github.com/MacZel/CarND-Path-Planning-Project-P7/blob/master/src/main.cpp#L63) I did incorporate some constants to easily tweak those parameters. Code is prepared in such way it is easy to redefine number of highway lanes and still run path planner successfully. From lines [75 to 103](https://github.com/MacZel/CarND-Path-Planning-Project-P7/blob/master/src/main.cpp#L75) I am reading in sensor fusion data from json files if any are returned by SocketIO from the simulator. Lines [112 to 150](https://github.com/MacZel/CarND-Path-Planning-Project-P7/blob/master/src/main.cpp#L112) are responsible of detecting the behavior of other cars, determine their speed and lateral and longitudinal position on the road. Based on accumulated data planner decides of the safety in performing following moves: going ahead, turning left or right. On lines [153 to 172](https://github.com/MacZel/CarND-Path-Planning-Project-P7/blob/master/src/main.cpp#L153) planner makes a decision of the next move, based on the previously evaluated safe moves. Possible moves are turning left, right or keeping the speed of the car ahead.
+On lines [173 to 270](https://github.com/MacZel/CarND-Path-Planning-Project-P7/blob/master/src/main.cpp#L173) is the part of the code responsible for trajectory generation. The trajectory evaluation takes into account cars coordinates, its speed and lane occupation and previous path points. Previous path points provide trajectory continuity, also increasing trajectory generation efficiency and accuracy. It is no longer needed to reevaluate trajectory from scratch at every iteration. Also to make trajectory evaluation efficient coordinates are transformed to local car coordinates.
+
+## Final thoughts
+I must say the final code is a bit hard to maintain. I suppose it would be better to transform the code to more OOP paradigm. In further work I will also try to introduce cost functions and some machine learning algorithm to make the cars behavior more realistic. 
+
    
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
